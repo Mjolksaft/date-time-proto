@@ -30,8 +30,16 @@ class UncertainInterval:
     earliest: TimePoint
     latest: TimePoint
 
+# add true false unknown (Three valued logic )
+# Basic temporal relations
+# Three-valued comparison result
+# Indeterminate result propagation fix 
+# Exact timestamps (hour, minutes,sec)
+# Full Allen-style subset (after,equals,during,starts,finishes)
+#
+
 def main():
-    with open("testCases.txt", "r") as file:
+    with open("testCases.txt", "r") as file: 
         for raw_line in file:
             line = raw_line.strip()
 
