@@ -1,6 +1,13 @@
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 import calendar
+
+
+class TruthValue(Enum):
+    TRUE = "TRUE"
+    FALSE = "FALSE"
+    UNKNOWN = "UNKNOWN"
 
 
 @dataclass
@@ -10,36 +17,44 @@ class TimePoint:
     day: int | None = None
     granularity: str = ""
 
+
 @dataclass
 class Interval:
     start: TimePoint
     end: TimePoint
+
 
 @dataclass
 class SemanticInterval:
     start: datetime
     end: datetime
 
+
 @dataclass
 class PossibleRange:
     earliest: datetime
     latest: datetime
+
 
 @dataclass
 class UncertainInterval:
     earliest: TimePoint
     latest: TimePoint
 
-# add true false unknown (Three valued logic )
-# Basic temporal relations
-# Three-valued comparison result
-# Indeterminate result propagation fix 
-# Exact timestamps (hour, minutes,sec)
-# Full Allen-style subset (after,equals,during,starts,finishes)
+
 #
+# add true false unknown (Three valued logic ) (Done)
+# Three-valued comparison result  (done)
+# Indeterminate result propagation fix (when precision mismatch) 
+# Exact timestamps (hour, minutes,sec)
+# Full Allen-style subset (after,equals,during,starts,finishes) 
+# 
 
 def main():
-    with open("testCases.txt", "r") as file: 
+    interval = "interval.txt"
+    relations = "relations.txt"
+    three_valued_logic = "tv.txt"
+    with open(three_valued_logic, "r") as file:
         for raw_line in file:
             line = raw_line.strip()
 
@@ -85,18 +100,18 @@ def handle_relation_case(method: str, left_text: str, right_text: str):
     left_semantic = semanticize(left_parsed)
     right_semantic = semanticize(right_parsed)
 
-    # print("left parsed:")
-    # print(left_parsed)
     print("left semantic:")
     print(left_semantic)
 
-    # print("right parsed:")
-    # print(right_parsed)
     print("right semantic:")
     print(right_semantic)
 
     result = evaluate_relation(method, left_semantic, right_semantic)
-    print(f"{method}: {result}")
+
+    if isinstance(result, TruthValue):
+        print(f"{method}: {result.value}")
+    else:
+        print(f"{method}: {result}")
 
 
 def parse_value(text: str):
@@ -104,9 +119,10 @@ def parse_value(text: str):
 
     if text.startswith("{") and text.endswith("}") and ".." in text:
         return parse_uncertain(text)
-        
-    elif text.startswith("[") and text.endswith("]") and ".." in text:
+
+    if text.startswith("[") and text.endswith("]") and ".." in text:
         return parse_interval(text)
+
     return parse_timepoint(text)
 
 
@@ -118,13 +134,14 @@ def parse_uncertain(text: str) -> UncertainInterval:
 
     return UncertainInterval(earliest=earliest, latest=latest)
 
+
 def parse_interval(text: str) -> Interval:
     left_text, right_text = text[1:-1].split("..")
 
-    earliest = parse_timepoint(left_text.strip())
-    latest = parse_timepoint(right_text.strip())
+    start = parse_timepoint(left_text.strip())
+    end = parse_timepoint(right_text.strip())
 
-    return Interval(start=earliest, end=latest)
+    return Interval(start=start, end=end)
 
 
 def parse_timepoint(text: str) -> TimePoint:
@@ -199,7 +216,8 @@ def to_possible_range(u: UncertainInterval) -> PossibleRange:
     )
 
 
-def evaluate_relation(method: str, left, right) -> bool:
+def evaluate_relation(method: str, left, right):
+    # Boolean relations
     if method == "contains":
         return contains(left, right)
 
@@ -208,20 +226,28 @@ def evaluate_relation(method: str, left, right) -> bool:
 
     if method == "before":
         return before(left, right)
-    
+
     if method == "possibly_before":
         return possibly_before(left, right)
 
     if method == "possibly_overlaps":
         return possibly_overlaps(left, right)
-    
+
     if method == "definitely_before":
         return definitely_before(left, right)
-    
+
     if method == "definitely_overlaps":
         return definitely_overlaps(left, right)
-    
+
+    # Three-valued relations
+    if method == "tv_before":
+        return three_valued_before(left, right)
+
+    if method == "tv_overlaps":
+        return three_valued_overlaps(left, right)
+
     raise ValueError(f"Unknown method: {method}")
+
 
 def get_earliest(value):
     if isinstance(value, SemanticInterval):
@@ -239,23 +265,51 @@ def get_latest(value):
     raise ValueError("Unsupported value")
 
 
+def to_truth_value(definitely: bool, possibly: bool) -> TruthValue:
+    if definitely:
+        return TruthValue.TRUE
+    if possibly:
+        return TruthValue.UNKNOWN
+    return TruthValue.FALSE
+
+
+def three_valued_before(a, b) -> TruthValue:
+    return to_truth_value(
+        definitely_before(a, b),
+        possibly_before(a, b)
+    )
+
+
+def three_valued_overlaps(a, b) -> TruthValue:
+    return to_truth_value(
+        definitely_overlaps(a, b),
+        possibly_overlaps(a, b)
+    )
+
+
 def contains(a: SemanticInterval, b: SemanticInterval) -> bool:
     return a.start <= b.start and a.end >= b.end
+
 
 def overlaps(a: SemanticInterval, b: SemanticInterval) -> bool:
     return not (a.end < b.start or b.end < a.start)
 
+
 def before(a: SemanticInterval, b: SemanticInterval) -> bool:
     return a.end < b.start
+
 
 def possibly_before(a, b) -> bool:
     return get_earliest(a) < get_latest(b)
 
+
 def possibly_overlaps(a, b) -> bool:
     return not (get_latest(a) < get_earliest(b) or get_latest(b) < get_earliest(a))
 
+
 def definitely_before(a, b) -> bool:
     return get_latest(a) < get_earliest(b)
+
 
 def definitely_overlaps(a, b) -> bool:
     a_start = get_earliest(a)
@@ -265,6 +319,7 @@ def definitely_overlaps(a, b) -> bool:
     b_end = get_latest(b)
 
     return not (a_end < b_start or b_end < a_start)
+
 
 if __name__ == "__main__":
     main()
