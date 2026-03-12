@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 import calendar
+import sys
+import ast
 
 
 class TruthValue(Enum):
@@ -40,21 +42,23 @@ class PossibleRange:
 class UncertainInterval:
     earliest: TimePoint
     latest: TimePoint
+    probablity: list[int]
 
 
 #
 # add true false unknown (Three valued logic ) (Done)
 # Three-valued comparison result  (done)
-# Indeterminate result propagation fix (when precision mismatch) 
-# Exact timestamps (hour, minutes,sec)
+# Exact timestamps (hour, minutes,sec) ? dont need to add 
 # Full Allen-style subset (after,equals,during,starts,finishes) 
+# Indeterminate result propagation fix (when precision mismatch) may not matter in current implementation 
+# 4 valued logic    rv-ltl
 # 
 
 def main():
     interval = "interval.txt"
     relations = "relations.txt"
     three_valued_logic = "tv.txt"
-    with open(three_valued_logic, "r") as file:
+    with open(interval, "r") as file:
         for raw_line in file:
             line = raw_line.strip()
 
@@ -117,22 +121,27 @@ def handle_relation_case(method: str, left_text: str, right_text: str):
 def parse_value(text: str):
     text = text.strip()
 
-    if text.startswith("{") and text.endswith("}") and ".." in text:
-        return parse_uncertain(text)
+    if text.startswith("{") and "}" in text and ".." in text:
+        uncertainty, probability = text.split("~")
+        probability = ast.literal_eval(probability)
+        if sum(probability) != 1: raise ValueError(f"Must add to 1: {probability}")
 
-    if text.startswith("[") and text.endswith("]") and ".." in text:
+        return parse_uncertain(uncertainty, probability)
+
+    if text.startswith("[") and "]" in text and ".." in text:
         return parse_interval(text)
 
     return parse_timepoint(text)
 
 
-def parse_uncertain(text: str) -> UncertainInterval:
-    left_text, right_text = text[1:-1].split("..")
+def parse_uncertain(text: str, probability: list[int]) -> UncertainInterval:
+    left_text, right_text = text[1:-2].split("..")
+    print(left_text, right_text)
 
     earliest = parse_timepoint(left_text.strip())
     latest = parse_timepoint(right_text.strip())
 
-    return UncertainInterval(earliest=earliest, latest=latest)
+    return UncertainInterval(earliest=earliest, latest=latest, probablity=probability)
 
 
 def parse_interval(text: str) -> Interval:
@@ -239,7 +248,6 @@ def evaluate_relation(method: str, left, right):
     if method == "definitely_overlaps":
         return definitely_overlaps(left, right)
 
-    # Three-valued relations
     if method == "tv_before":
         return three_valued_before(left, right)
 
